@@ -1,0 +1,466 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Itinerario Interattivo: USA West Coast</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
+    <!-- Chosen Palette: Warm Desert Neutrals -->
+    <!-- Application Structure Plan: Ho progettato un'applicazione a pagina singola con una struttura a dashboard. La navigazione principale è una timeline verticale che permette all'utente di selezionare un giorno specifico. Questa scelta rende l'esplorazione dell'itinerario, lungo e complesso, immediata e non lineare, a differenza della lettura sequenziale del PDF. Il contenuto principale si aggiorna dinamicamente, mostrando le tappe del giorno selezionato in schede (card) facili da leggere. Un grafico a barre accompagna la navigazione, offrendo una sintesi visiva dei tempi di guida, permettendo un rapido confronto tra le giornate. Questa struttura è stata scelta per massimizzare l'usabilità e la chiarezza, trasformando un documento statico in uno strumento di pianificazione interattivo. -->
+    <!-- Visualization & Content Choices: Le informazioni dell'itinerario sono state organizzate in schede (card) per ogni tappa, utilizzando icone (Unicode) per distinguere le attività (guida, cibo, visita, alloggio). Questo metodo (HTML/CSS) migliora la leggibilità. Per confrontare i tempi di viaggio, ho usato un grafico a barre (Chart.js/Canvas) che mostra le ore di guida per ogni giorno, con tooltip interattivi. La scelta del grafico a barre è ideale per un confronto diretto e immediato. Le mappe dei percorsi sono rappresentate da placeholder per mantenere la pulizia visiva e rispettare i vincoli tecnici. Questa combinazione di elementi testuali strutturati e visualizzazioni dati dinamiche serve a rendere le informazioni complesse del report più accessibili e coinvolgenti. -->
+    <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #FDFBF7; /* Warm off-white */
+        }
+        .chart-container {
+            position: relative;
+            width: 100%;
+            max-width: 600px;
+            margin-left: auto;
+            margin-right: auto;
+            height: 300px;
+            max-height: 40vh;
+        }
+        .nav-button {
+            transition: all 0.3s ease;
+            border-left-width: 4px;
+            border-color: transparent;
+        }
+        .nav-button.active {
+            background-color: #FFF7ED; /* Lighter orange cream */
+            border-color: #F97316; /* Orange */
+            transform: scale(1.05);
+        }
+        .nav-button:hover {
+            background-color: #FFF7ED;
+            border-color: #FB923C;
+        }
+        .card-icon {
+            flex-shrink: 0;
+            width: 2.5rem;
+            height: 2.5rem;
+        }
+    </style>
+</head>
+<body class="text-gray-800">
+
+    <div class="container mx-auto px-4 py-8 md:px-8 md:py-12">
+        <header class="text-center mb-12">
+            <h1 class="text-3xl sm:text-4xl md:text-5xl font-bold text-gray-900">Road Trip: USA West Coast</h1>
+            <p class="mt-2 text-base md:text-lg text-gray-600">Il tuo itinerario di viaggio interattivo</p>
+        </header>
+
+        <main class="grid grid-cols-1 lg:grid-cols-4 gap-8">
+            
+            <aside class="lg:col-span-1">
+                <div class="lg:sticky top-8">
+                    <h2 class="text-xl font-bold mb-4 text-gray-900">Timeline del Viaggio</h2>
+                    <nav id="day-navigation" class="flex flex-col space-y-2"></nav>
+                    
+                    <div class="mt-8 bg-white p-4 rounded-lg shadow-md">
+                        <h3 class="text-lg font-bold mb-2 text-center text-gray-900">Ore di Guida per Giorno</h3>
+                        <div class="chart-container">
+                            <canvas id="drivingChart"></canvas>
+                        </div>
+                    </div>
+
+                    <div class="mt-8 bg-white p-4 rounded-lg shadow-md">
+                        <h3 class="text-lg font-bold mb-3 text-center text-gray-900">Info Utili di Viaggio</h3>
+                        <div class="space-y-4">
+                            <div>
+                                <h4 class="font-semibold text-gray-800 flex items-center"><span class="mr-2">⛽</span>Stima Costo Benzina Totale</h4>
+                                <p class="text-sm text-gray-600 mt-1">
+                                    Distanza totale: ~4200 km (~2600 miglia).<br>
+                                    Costo stimato: <strong>$430 - $480</strong> (con un'auto da ~28 MPG e prezzo medio di $4.70/gallone).
+                                </p>
+                            </div>
+                            <div>
+                                <h4 class="font-semibold text-gray-800 flex items-center"><span class="mr-2">🌡️</span>Temperature Medie</h4>
+                                <p class="text-sm text-gray-600 mt-1">
+                                    Le temperature varieranno notevolmente. Aspettati caldo estremo nel deserto e clima mite/fresco a San Francisco.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </aside>
+
+            <section id="itinerary-content" class="lg:col-span-3 bg-white p-6 md:p-8 rounded-lg shadow-lg">
+            </section>
+
+        </main>
+    </div>
+
+    <script>
+        const tripData = [
+            {
+                day: 1,
+                date: "Mercoledì 7 Agosto",
+                title: "Arrivo a Los Angeles",
+                temperature: "Max: 29°C / Min: 18°C",
+                overnight: "Wilshire Motel, Los Angeles",
+                drivingHours: 0.5,
+                fuelCost: 5,
+                events: [
+                    { type: 'flight', time: '18:25', title: 'Arrivo a LAX', description: 'Atterraggio all\'Aeroporto Internazionale di Los Angeles. I controlli doganali dovrebbero essere veloci grazie al pre-sdoganamento a Dublino.' },
+                    { type: 'car', time: 'Sera', title: 'Ritiro Auto e Check-in', description: 'Prendere lo shuttle gratuito (colonne lilla) per il deposito auto. Guidare per 20 min fino al Wilshire Motel.' },
+                    { type: 'sight', time: 'Tramonto', title: 'Griffith Observatory', description: 'Dopo una cena veloce, visita al Griffith Observatory per ammirare il tramonto e la vista panoramica sulla città e la scritta di Hollywood.' }
+                ]
+            },
+            {
+                day: 2,
+                date: "Giovedì 8 Agosto",
+                title: "Esplorazione di Los Angeles",
+                temperature: "Max: 29°C / Min: 18°C",
+                overnight: "Wilshire Motel, Los Angeles",
+                drivingHours: 2.5,
+                fuelCost: 24,
+                events: [
+                    { type: 'sight', time: 'Mattina presto', title: 'Lake Hollywood Park', description: 'Sosta fotografica di 20 minuti per la scritta di Hollywood.' },
+                    { type: 'sight', time: 'Mattina', title: 'Hollywood & Beverly Hills', description: 'Visita alla Walk of Fame e Hollywood Blvd. Poi, passeggiata a Rodeo Drive a Beverly Hills (2 ore di parcheggio gratis).' },
+                    { type: 'food', time: 'Pranzo', title: 'Pranzo a Santa Monica', description: 'Opzione pranzo da Bubba Gump o altro locale sul posto.' },
+                    { type: 'sight', time: 'Pomeriggio', title: 'Spiagge Iconiche', description: 'Tour in auto a Bel Air, poi visita al molo di Santa Monica e passeggiata fino a Venice Beach.' },
+                    { type: 'car', time: 'Sera', title: 'Malibù', description: 'Guida sulla Pacific Coast Highway fino a Malibù. Opzionale: Redondo Beach e Long Beach.' }
+                ]
+            },
+            {
+                day: 3,
+                date: "Venerdì 9 Agosto",
+                title: "Universal Studios e Route 66",
+                temperature: "Max: 38°C / Min: 16°C",
+                overnight: "Rancho Motel, Williams",
+                drivingHours: 6.0,
+                fuelCost: 58,
+                events: [
+                    { type: 'sight', time: '08:00 - 14:00', title: 'Universal Studios', description: 'Visita al parco a tema, con attrazioni come Harry Potter e lo Studio Tour.' },
+                    { type: 'car', time: '14:00', title: 'Partenza per Williams', description: 'Inizio del viaggio on the road sulla storica Route 66.' },
+                    { type: 'sight', time: '~17:00', title: 'Amboy, California', description: 'Sosta alla città fantasma per vedere il Roy\'s Motel & Café.' },
+                    { type: 'food', time: '~19:10', title: 'Cena a Oatman, Arizona', description: 'Cena nel vecchio west presso l\'Oatman Hotel.' },
+                    { type: 'car', time: 'Tarda Serata', title: 'Verso Williams', description: 'Tappe a Kingman e Seligman prima di arrivare a Williams per la notte.' }
+                ]
+            },
+            {
+                day: 4,
+                date: "Sabato 10 Agosto",
+                title: "Grand Canyon e Page",
+                temperature: "Max: 27°C / Min: 10°C",
+                overnight: "Hotel a Page",
+                drivingHours: 3.5,
+                fuelCost: 34,
+                events: [
+                    { type: 'car', time: 'Mattina', title: 'Partenza per il Grand Canyon', description: 'Viaggio di circa 1 ora da Williams al South Rim.' },
+                    { type: 'sight', time: 'Giornata', title: 'Esplorazione del South Rim', description: 'Percorso a piedi sul Rim Trail, visitando Mather Point, Yavapai Point e il Grand Canyon Village.' },
+                    { type: 'car', time: 'Pomeriggio', title: 'Desert View Drive', description: 'Uscita dal parco percorrendo la strada panoramica con soste a vari viewpoint, inclusa la Desert View Watchtower.' },
+                    { type: 'food', time: 'Sera', title: 'Cena a Page', description: 'Arrivo a Page e cena da Big John\'s Texas BBQ.' }
+                ]
+            },
+            {
+                day: 5,
+                date: "Domenica 11 Agosto",
+                title: "Antelope, Horseshoe e Monument Valley",
+                temperature: "Max: 36°C / Min: 22°C",
+                overnight: "Hotel a Bluff",
+                drivingHours: 4.0,
+                fuelCost: 39,
+                events: [
+                    { type: 'sight', time: '07:30', title: 'Lower Antelope Canyon', description: 'Tour guidato nello spettacolare slot canyon.' },
+                    { type: 'sight', time: 'Mattina', title: 'Horseshoe Bend & Lake Powell', description: 'Visita al famoso meandro del fiume Colorado e al lago artificiale, con opzione crociera o kayak.' },
+                    { type: 'car', time: 'Pomeriggio', title: 'Verso la Monument Valley', description: 'Partenza da Page.' },
+                    { type: 'sight', time: 'Tardo Pomeriggio', title: 'Tour della Monument Valley', description: 'Percorso in auto sulla Valley Drive tra i monoliti iconici (ultimo ingresso 16:30).' },
+                    { type: 'lodging', time: 'Sera', title: 'Arrivo a Bluff', description: 'Cena e pernottamento nella cittadina dello Utah.' }
+                ]
+            },
+            {
+                day: 6,
+                date: "Lunedì 12 Agosto",
+                title: "Verso Las Vegas via Zion",
+                temperature: "Max: 40°C / Min: 27°C",
+                overnight: "Hotel a Las Vegas",
+                drivingHours: 6.7,
+                fuelCost: 65,
+                events: [
+                    { type: 'car', time: '07:00', title: 'Partenza da Bluff', description: 'Lungo viaggio verso Las Vegas.' },
+                    { type: 'sight', time: 'Mattina/Pomeriggio', title: 'Attraversamento Zion NP', description: 'Passaggio sulla scenografica Zion-Mount Carmel Highway (UT-9). Sosta a Kanab e pranzo a Springdale.' },
+                    { type: 'lodging', time: '~15:00', title: 'Arrivo a Las Vegas', description: 'Check-in in hotel (si recupera 1 ora di fuso orario).' },
+                    { type: 'sight', time: 'Sera', title: 'Esplorazione della Strip', description: 'Passeggiata sulla Las Vegas Strip, visita agli hotel e spettacolo delle fontane del Bellagio.' }
+                ]
+            },
+            {
+                day: 7,
+                date: "Martedì 13 Agosto",
+                title: "Death Valley e arrivo a Visalia",
+                temperature: "Max: 47°C / Min: 30°C",
+                overnight: "Hotel a Visalia",
+                drivingHours: 8.2,
+                fuelCost: 79,
+                events: [
+                    { type: 'car', time: '07:00', title: 'Partenza da Las Vegas', description: 'Direzione Death Valley National Park.' },
+                    { type: 'sight', time: 'Mattina', title: 'Esplorazione Death Valley', description: 'Soste ai punti iconici: Zabriskie Point, Badwater Basin (il punto più basso del Nord America), Artist\'s Drive e Mesquite Flat Sand Dunes.' },
+                    { type: 'car', time: 'Pomeriggio', title: 'Viaggio verso Visalia', description: 'Lungo trasferimento attraverso il deserto californiano.' },
+                    { type: 'lodging', time: '~17:00', title: 'Arrivo a Visalia', description: 'Check-in e riposo in preparazione per la visita al Sequoia NP.' }
+                ]
+            },
+            {
+                day: 8,
+                date: "Mercoledì 14 Agosto",
+                title: "Sequoia NP e Mariposa",
+                temperature: "Max: 28°C / Min: 13°C",
+                overnight: "Hotel a Mariposa",
+                drivingHours: 4.5,
+                fuelCost: 43,
+                events: [
+                    { type: 'sight', time: 'Mattina/Pomeriggio', title: 'Visita Sequoia National Park', description: 'Incontro con gli alberi giganti. Tappe principali: General Sherman Tree, Giant Forest, Moro Rock e Tunnel Log.' },
+                    { type: 'car', time: '~14:30', title: 'Partenza per Mariposa', description: 'Viaggio verso la città porta d\'accesso a Yosemite.' },
+                    { type: 'lodging', time: '~17:45', title: 'Arrivo a Mariposa', description: 'Check-in e cena.' }
+                ]
+            },
+            {
+                day: 9,
+                date: "Giovedì 15 Agosto",
+                title: "Yosemite e San Francisco",
+                temperature: "Max: 32°C / Min: 14°C",
+                overnight: "Hotel a San Francisco",
+                drivingHours: 5.5,
+                fuelCost: 53,
+                events: [
+                    { type: 'sight', time: 'Mattina', title: 'Esplorazione Yosemite Valley', description: 'Visita ai punti panoramici più famosi del parco: Tunnel View, Yosemite Falls ed El Capitan Meadow.' },
+                    { type: 'food', time: '12:30', title: 'Pranzo a Yosemite Village', description: 'Pausa pranzo nel cuore del parco.' },
+                    { type: 'car', time: '~13:30', title: 'Partenza per San Francisco', description: 'Viaggio di circa 4-4.5 ore verso la costa.' },
+                    { type: 'lodging', time: '~18:30', title: 'Arrivo a San Francisco', description: 'Check-in in hotel e serata in città.' }
+                ]
+            },
+            {
+                day: 10,
+                date: "Venerdì 16 Agosto",
+                title: "San Francisco - Giorno 1",
+                temperature: "Max: 20°C / Min: 13°C",
+                overnight: "Hotel a San Francisco",
+                drivingHours: 0,
+                fuelCost: 0,
+                events: [
+                    { type: 'food', time: 'Mattina', title: 'Tour a piedi del centro', description: 'Colazione a Chinatown, poi visita a Union Square, Ferry Building e salita alla Coit Tower.' },
+                    { type: 'sight', time: 'Pomeriggio', title: 'Fisherman\'s Wharf', description: 'Esplorazione del molo, Pier 39 con i leoni marini, Ghirardelli Square e giro sulla storica Cable Car.' },
+                    { type: 'event', time: '18:05', title: 'Partita dei Giants all\'Oracle Park', description: 'Assistere a una partita di baseball con vista sulla baia.' },
+                    { type: 'sight', time: 'Sera', title: 'Luci del Bay Bridge', description: 'Passeggiata serale all\'Embarcadero per ammirare il ponte illuminato.' }
+                ]
+            },
+            {
+                day: 11,
+                date: "Sabato 17 Agosto",
+                title: "San Francisco - Giorno 2",
+                temperature: "Max: 20°C / Min: 13°C",
+                overnight: "Hotel a San Francisco",
+                drivingHours: 0,
+                fuelCost: 0,
+                events: [
+                    { type: 'sight', time: '08:40 - 11:30', title: 'Tour di Alcatraz', description: 'Visita guidata alla famosa isola-prigione (partenza dal Pier 33).' },
+                    { type: 'sight', time: 'Pomeriggio', title: 'Icone della città', description: 'Visita al Palace of Fine Arts, passeggiata a Crissy Field, esplorazione del Japanese Tea Garden nel Golden Gate Park e foto alle Painted Ladies ad Alamo Square.' }
+                ]
+            },
+            {
+                day: 12,
+                date: "Domenica 18 Agosto",
+                title: "Ritorno",
+                temperature: "Max: 29°C / Min: 18°C",
+                overnight: "In viaggio",
+                drivingHours: 6.0,
+                fuelCost: 58,
+                events: [
+                    { type: 'car', time: 'Giornata', title: 'Trasferimento a Los Angeles', description: 'Ultimo viaggio in auto da San Francisco a Los Angeles.' },
+                    { type: 'flight', time: '20:30', title: 'Volo di Ritorno da LAX', description: 'Partenza dall\'Aeroporto Internazionale di Los Angeles.' }
+                ]
+            }
+        ];
+
+        const icons = {
+            flight: '✈️',
+            car: '🚗',
+            sight: '🏞️',
+            food: '🍽️',
+            lodging: '🏨',
+            event: '⚾'
+        };
+
+        const dayNavigation = document.getElementById('day-navigation');
+        const itineraryContent = document.getElementById('itinerary-content');
+        let chart;
+        let currentDayIndex = 0;
+
+        function renderDay(dayIndex) {
+            currentDayIndex = dayIndex;
+            const dayData = tripData[dayIndex];
+            
+            itineraryContent.innerHTML = '';
+
+            const header = document.createElement('div');
+            header.className = 'mb-6 pb-4 border-b border-gray-200';
+            header.innerHTML = `
+                <p class="text-sm font-medium text-orange-600">${dayData.date}</p>
+                <h2 class="text-2xl md:text-3xl font-bold text-gray-900 mt-1">${dayData.title}</h2>
+                <p class="mt-2 text-gray-600 flex items-center"><span class="mr-2">${icons.lodging}</span> Pernottamento: <span class="font-semibold ml-1">${dayData.overnight}</span></p>
+
+                <!-- New Info Bar -->
+                <div class="mt-4 pt-4 border-t border-gray-100 grid grid-cols-1 sm:grid-cols-3 gap-y-4 gap-x-4 text-sm">
+                    <div class="flex items-center">
+                        <span class="mr-3 text-xl text-blue-500">🌡️</span>
+                        <div>
+                            <p class="font-semibold text-gray-800">Temperatura Media</p>
+                            <p class="text-gray-600">${dayData.temperature}</p>
+                        </div>
+                    </div>
+                    <div class="flex items-center">
+                        <span class="mr-3 text-xl text-red-500">🚗</span>
+                        <div>
+                            <p class="font-semibold text-gray-800">Ore di Guida Stimate</p>
+                            <p class="text-gray-600">${dayData.drivingHours.toFixed(1)} ore</p>
+                        </div>
+                    </div>
+                    <div class="flex items-center">
+                        <span class="mr-3 text-xl text-green-500">⛽</span>
+                        <div>
+                            <p class="font-semibold text-gray-800">Costo Benzina Stimato</p>
+                            <p class="text-gray-600">${dayData.fuelCost > 0 ? `~ $${dayData.fuelCost}` : 'N/A'}</p>
+                        </div>
+                    </div>
+                </div>
+            `;
+            itineraryContent.appendChild(header);
+            
+            const eventsContainer = document.createElement('div');
+            eventsContainer.className = 'space-y-6 mt-6';
+            dayData.events.forEach(event => {
+                const eventCard = document.createElement('div');
+                eventCard.className = 'flex items-start space-x-4';
+                eventCard.innerHTML = `
+                    <div class="card-icon bg-orange-100 text-orange-600 rounded-full flex items-center justify-center text-xl">${icons[event.type] || '•'}</div>
+                    <div class="flex-1">
+                        <p class="font-bold text-lg text-gray-900">${event.title} <span class="text-sm font-normal text-gray-500 ml-2">${event.time}</span></p>
+                        <p class="text-gray-700 mt-1">${event.description}</p>
+                    </div>
+                `;
+                eventsContainer.appendChild(eventCard);
+            });
+            itineraryContent.appendChild(eventsContainer);
+            
+            updateActiveNav();
+            updateChartHighlight();
+        }
+
+        function updateActiveNav() {
+            const buttons = dayNavigation.querySelectorAll('.nav-button');
+            buttons.forEach((button, index) => {
+                if (index === currentDayIndex) {
+                    button.classList.add('active');
+                } else {
+                    button.classList.remove('active');
+                }
+            });
+        }
+        
+        function updateChartHighlight() {
+            if (chart) {
+                chart.data.datasets[0].backgroundColor = tripData.map((_, index) => index === currentDayIndex ? '#F97316' : '#FDBA74');
+                chart.update();
+            }
+        }
+
+        function initNav() {
+            tripData.forEach((day, index) => {
+                const button = document.createElement('button');
+                button.className = 'nav-button w-full text-left p-3 rounded-lg';
+                button.innerHTML = `<span class="font-bold">Giorno ${day.day}:</span> <span class="text-gray-700">${day.title}</span>`;
+                button.onclick = () => {
+                    renderDay(index);
+                    // On mobile, scroll to the content after selection
+                    if (window.innerWidth < 1024) {
+                        itineraryContent.scrollIntoView({ behavior: 'smooth' });
+                    }
+                };
+                dayNavigation.appendChild(button);
+            });
+        }
+
+        function initChart() {
+            const ctx = document.getElementById('drivingChart').getContext('2d');
+            const labels = tripData.map(day => `Giorno ${day.day}`);
+            const data = tripData.map(day => day.drivingHours);
+
+            chart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Ore di Guida',
+                        data: data,
+                        backgroundColor: '#FDBA74',
+                        borderColor: '#F97316',
+                        borderWidth: 1,
+                        borderRadius: 4,
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: false
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    let label = context.dataset.label || '';
+                                    if (label) {
+                                        label += ': ';
+                                    }
+                                    if (context.parsed.y !== null) {
+                                        label += `${context.parsed.y.toFixed(1)} ore`;
+                                    }
+                                    return label;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: 'Ore'
+                            }
+                        },
+                        x: {
+                           ticks: {
+                                autoSkip: true,
+                                maxTicksLimit: 6,
+                                font: {
+                                    size: 10
+                                }
+                           }
+                        }
+                    },
+                    onClick: (e) => {
+                        const points = chart.getElementsAtEventForMode(e, 'nearest', { intersect: true }, true);
+                        if (points.length) {
+                            const firstPoint = points[0];
+                            const index = firstPoint.index;
+                            renderDay(index);
+                        }
+                    }
+                }
+            });
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            initNav();
+            initChart();
+            renderDay(0);
+        });
+    </script>
+</body>
+</html>
