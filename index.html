@@ -512,11 +512,42 @@
         }
 
         document.addEventListener('DOMContentLoaded', () => {
+            // Funzione per trovare l'indice del giorno corrente basandosi sulla data odierna.
+            // Se la data odierna non corrisponde a nessun giorno del viaggio, viene mostrato il primo giorno.
+            const findCurrentDayIndex = () => {
+                const now = new Date();
+                const tripYear = 2024; // L'anno del viaggio è assunto essere il 2024
+
+                const monthMap = {
+                    'Gennaio': 0, 'Febbraio': 1, 'Marzo': 2, 'Aprile': 3, 'Maggio': 4, 'Giugno': 5,
+                    'Luglio': 6, 'Agosto': 7, 'Settembre': 8, 'Ottobre': 9, 'Novembre': 10, 'Dicembre': 11
+                };
+
+                // Cerca una corrispondenza tra la data di oggi e le date del viaggio
+                const todayIndex = tripData.findIndex(dayData => {
+                    const parts = dayData.date.split(' '); // Es. "Mercoledì 7 Agosto"
+                    const day = parseInt(parts[1], 10);
+                    const month = monthMap[parts[2]];
+                    
+                    if (day === now.getDate() && month === now.getMonth() && tripYear === now.getFullYear()) {
+                        return true;
+                    }
+                    return false;
+                });
+
+                // Se viene trovato un giorno corrispondente (todayIndex > -1), lo restituisce. Altrimenti, restituisce 0.
+                return todayIndex > -1 ? todayIndex : 0;
+            };
+
+            const initialDayIndex = findCurrentDayIndex();
+
             initNav();
             initChart();
-            renderDay(0);
+            renderDay(initialDayIndex); // Mostra il giorno corretto o il primo giorno
+            
+            // Aggiorna gli orologi ogni secondo
             setInterval(updateClocks, 1000);
-            updateClocks(); // Initial call to display time immediately
+            updateClocks(); // Chiamata iniziale per mostrare l'ora subito
         });
     </script>
 </body>
